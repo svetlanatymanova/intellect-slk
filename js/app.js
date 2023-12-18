@@ -4820,4 +4820,14 @@
             burger.classList.toggle("active");
         };
     }
+    let headerMenus = document.querySelectorAll(".header-links__link");
+    headerMenus.forEach((menu => {
+        menu.addEventListener("click", (function() {
+            menu.parentElement.classList.toggle("active");
+            let menuClose = menu.parentElement.querySelector(".menu-links__close");
+            menuClose.addEventListener("click", (function() {
+                menu.parentElement.classList.remove("active");
+            }));
+        }));
+    }));
 })();
