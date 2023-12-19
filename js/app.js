@@ -4568,6 +4568,7 @@
     new Swiper(".swiper-gallery", {
         modules: [ Grid, Navigation, Pagination, Scrollbar, freeMode ],
         freeMode: true,
+        watchOverflow: true,
         breakpoints: {
             1600: {
                 slidesPerView: 9,
