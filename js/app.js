@@ -1,6 +1,89 @@
 (() => {
     "use strict";
-    const modules_flsModules = {};
+    var appleIphone = /iPhone/i;
+    var appleIpod = /iPod/i;
+    var appleTablet = /iPad/i;
+    var appleUniversal = /\biOS-universal(?:.+)Mac\b/i;
+    var androidPhone = /\bAndroid(?:.+)Mobile\b/i;
+    var androidTablet = /Android/i;
+    var amazonPhone = /(?:SD4930UR|\bSilk(?:.+)Mobile\b)/i;
+    var amazonTablet = /Silk/i;
+    var windowsPhone = /Windows Phone/i;
+    var windowsTablet = /\bWindows(?:.+)ARM\b/i;
+    var otherBlackBerry = /BlackBerry/i;
+    var otherBlackBerry10 = /BB10/i;
+    var otherOpera = /Opera Mini/i;
+    var otherChrome = /\b(CriOS|Chrome)(?:.+)Mobile/i;
+    var otherFirefox = /Mobile(?:.+)Firefox\b/i;
+    var isAppleTabletOnIos13 = function(navigator) {
+        return "undefined" !== typeof navigator && "MacIntel" === navigator.platform && "number" === typeof navigator.maxTouchPoints && navigator.maxTouchPoints > 1 && "undefined" === typeof MSStream;
+    };
+    function createMatch(userAgent) {
+        return function(regex) {
+            return regex.test(userAgent);
+        };
+    }
+    function isMobile(param) {
+        var nav = {
+            userAgent: "",
+            platform: "",
+            maxTouchPoints: 0
+        };
+        if (!param && "undefined" !== typeof navigator) nav = {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            maxTouchPoints: navigator.maxTouchPoints || 0
+        }; else if ("string" === typeof param) nav.userAgent = param; else if (param && param.userAgent) nav = {
+            userAgent: param.userAgent,
+            platform: param.platform,
+            maxTouchPoints: param.maxTouchPoints || 0
+        };
+        var userAgent = nav.userAgent;
+        var tmp = userAgent.split("[FBAN");
+        if ("undefined" !== typeof tmp[1]) userAgent = tmp[0];
+        tmp = userAgent.split("Twitter");
+        if ("undefined" !== typeof tmp[1]) userAgent = tmp[0];
+        var match = createMatch(userAgent);
+        var result = {
+            apple: {
+                phone: match(appleIphone) && !match(windowsPhone),
+                ipod: match(appleIpod),
+                tablet: !match(appleIphone) && (match(appleTablet) || isAppleTabletOnIos13(nav)) && !match(windowsPhone),
+                universal: match(appleUniversal),
+                device: (match(appleIphone) || match(appleIpod) || match(appleTablet) || match(appleUniversal) || isAppleTabletOnIos13(nav)) && !match(windowsPhone)
+            },
+            amazon: {
+                phone: match(amazonPhone),
+                tablet: !match(amazonPhone) && match(amazonTablet),
+                device: match(amazonPhone) || match(amazonTablet)
+            },
+            android: {
+                phone: !match(windowsPhone) && match(amazonPhone) || !match(windowsPhone) && match(androidPhone),
+                tablet: !match(windowsPhone) && !match(amazonPhone) && !match(androidPhone) && (match(amazonTablet) || match(androidTablet)),
+                device: !match(windowsPhone) && (match(amazonPhone) || match(amazonTablet) || match(androidPhone) || match(androidTablet)) || match(/\bokhttp\b/i)
+            },
+            windows: {
+                phone: match(windowsPhone),
+                tablet: match(windowsTablet),
+                device: match(windowsPhone) || match(windowsTablet)
+            },
+            other: {
+                blackberry: match(otherBlackBerry),
+                blackberry10: match(otherBlackBerry10),
+                opera: match(otherOpera),
+                firefox: match(otherFirefox),
+                chrome: match(otherChrome),
+                device: match(otherBlackBerry) || match(otherBlackBerry10) || match(otherOpera) || match(otherFirefox) || match(otherChrome)
+            },
+            any: false,
+            phone: false,
+            tablet: false
+        };
+        result.any = result.apple.device || result.android.device || result.windows.device || result.other.device;
+        result.phone = result.apple.phone || result.android.phone || result.windows.phone;
+        result.tablet = result.apple.tablet || result.android.tablet || result.windows.tablet;
+        return result;
+    }
     function isWebp() {
         function testWebP(callback) {
             let webP = new Image;
@@ -13,6 +96,13 @@
             let className = true === support ? "webp" : "no-webp";
             document.documentElement.classList.add(className);
         }));
+    }
+    function getHash() {
+        if (location.hash) return location.hash.replace("#", "");
+    }
+    function setHash(hash) {
+        hash = hash ? `#${hash}` : window.location.href.split("#")[0];
+        history.pushState("", "", hash);
     }
     let _slideUp = (target, duration = 500, showmore = 0) => {
         if (!target.classList.contains("_slide")) {
@@ -82,44 +172,6 @@
     };
     let _slideToggle = (target, duration = 500) => {
         if (target.hidden) return _slideDown(target, duration); else return _slideUp(target, duration);
-    };
-    let bodyLockStatus = true;
-    let bodyLockToggle = (delay = 500) => {
-        if (document.documentElement.classList.contains("lock")) bodyUnlock(delay); else bodyLock(delay);
-    };
-    let bodyUnlock = (delay = 500) => {
-        let body = document.querySelector("body");
-        if (bodyLockStatus) {
-            let lock_padding = document.querySelectorAll("[data-lp]");
-            setTimeout((() => {
-                for (let index = 0; index < lock_padding.length; index++) {
-                    const el = lock_padding[index];
-                    el.style.paddingRight = "0px";
-                }
-                body.style.paddingRight = "0px";
-                document.documentElement.classList.remove("lock");
-            }), delay);
-            bodyLockStatus = false;
-            setTimeout((function() {
-                bodyLockStatus = true;
-            }), delay);
-        }
-    };
-    let bodyLock = (delay = 500) => {
-        let body = document.querySelector("body");
-        if (bodyLockStatus) {
-            let lock_padding = document.querySelectorAll("[data-lp]");
-            for (let index = 0; index < lock_padding.length; index++) {
-                const el = lock_padding[index];
-                el.style.paddingRight = window.innerWidth - document.querySelector(".wrapper").offsetWidth + "px";
-            }
-            body.style.paddingRight = window.innerWidth - document.querySelector(".wrapper").offsetWidth + "px";
-            document.documentElement.classList.add("lock");
-            bodyLockStatus = false;
-            setTimeout((function() {
-                bodyLockStatus = true;
-            }), delay);
-        }
     };
     function spollers() {
         const spollersArray = document.querySelectorAll("[data-spollers]");
@@ -199,18 +251,102 @@
             }));
         }
     }
-    function menuInit() {
-        if (document.querySelector(".icon-menu")) document.addEventListener("click", (function(e) {
-            if (bodyLockStatus && e.target.closest(".icon-menu")) {
-                bodyLockToggle();
-                document.documentElement.classList.toggle("menu-open");
+    function tabs() {
+        const tabs = document.querySelectorAll("[data-tabs]");
+        let tabsActiveHash = [];
+        if (tabs.length > 0) {
+            const hash = getHash();
+            if (hash && hash.startsWith("tab-")) tabsActiveHash = hash.replace("tab-", "").split("-");
+            tabs.forEach(((tabsBlock, index) => {
+                tabsBlock.classList.add("_tab-init");
+                tabsBlock.setAttribute("data-tabs-index", index);
+                tabsBlock.addEventListener("click", setTabsAction);
+                initTabs(tabsBlock);
+            }));
+            let mdQueriesArray = dataMediaQueries(tabs, "tabs");
+            if (mdQueriesArray && mdQueriesArray.length) mdQueriesArray.forEach((mdQueriesItem => {
+                mdQueriesItem.matchMedia.addEventListener("change", (function() {
+                    setTitlePosition(mdQueriesItem.itemsArray, mdQueriesItem.matchMedia);
+                }));
+                setTitlePosition(mdQueriesItem.itemsArray, mdQueriesItem.matchMedia);
+            }));
+        }
+        function setTitlePosition(tabsMediaArray, matchMedia) {
+            tabsMediaArray.forEach((tabsMediaItem => {
+                tabsMediaItem = tabsMediaItem.item;
+                let tabsTitles = tabsMediaItem.querySelector("[data-tabs-titles]");
+                let tabsTitleItems = tabsMediaItem.querySelectorAll("[data-tabs-title]");
+                let tabsContent = tabsMediaItem.querySelector("[data-tabs-body]");
+                let tabsContentItems = tabsMediaItem.querySelectorAll("[data-tabs-item]");
+                tabsTitleItems = Array.from(tabsTitleItems).filter((item => item.closest("[data-tabs]") === tabsMediaItem));
+                tabsContentItems = Array.from(tabsContentItems).filter((item => item.closest("[data-tabs]") === tabsMediaItem));
+                tabsContentItems.forEach(((tabsContentItem, index) => {
+                    if (matchMedia.matches) {
+                        tabsContent.append(tabsTitleItems[index]);
+                        tabsContent.append(tabsContentItem);
+                        tabsMediaItem.classList.add("_tab-spoller");
+                    } else {
+                        tabsTitles.append(tabsTitleItems[index]);
+                        tabsMediaItem.classList.remove("_tab-spoller");
+                    }
+                }));
+            }));
+        }
+        function initTabs(tabsBlock) {
+            let tabsTitles = tabsBlock.querySelectorAll("[data-tabs-titles]>*");
+            let tabsContent = tabsBlock.querySelectorAll("[data-tabs-body]>*");
+            const tabsBlockIndex = tabsBlock.dataset.tabsIndex;
+            const tabsActiveHashBlock = tabsActiveHash[0] == tabsBlockIndex;
+            if (tabsActiveHashBlock) {
+                const tabsActiveTitle = tabsBlock.querySelector("[data-tabs-titles]>._tab-active");
+                tabsActiveTitle ? tabsActiveTitle.classList.remove("_tab-active") : null;
             }
-        }));
-    }
-    function functions_FLS(message) {
-        setTimeout((() => {
-            if (window.FLS) console.log(message);
-        }), 0);
+            if (tabsContent.length) {
+                tabsContent = Array.from(tabsContent).filter((item => item.closest("[data-tabs]") === tabsBlock));
+                tabsTitles = Array.from(tabsTitles).filter((item => item.closest("[data-tabs]") === tabsBlock));
+                tabsContent.forEach(((tabsContentItem, index) => {
+                    tabsTitles[index].setAttribute("data-tabs-title", "");
+                    tabsContentItem.setAttribute("data-tabs-item", "");
+                    if (tabsActiveHashBlock && index == tabsActiveHash[1]) tabsTitles[index].classList.add("_tab-active");
+                    tabsContentItem.hidden = !tabsTitles[index].classList.contains("_tab-active");
+                }));
+            }
+        }
+        function setTabsStatus(tabsBlock) {
+            let tabsTitles = tabsBlock.querySelectorAll("[data-tabs-title]");
+            let tabsContent = tabsBlock.querySelectorAll("[data-tabs-item]");
+            const tabsBlockIndex = tabsBlock.dataset.tabsIndex;
+            function isTabsAnamate(tabsBlock) {
+                if (tabsBlock.hasAttribute("data-tabs-animate")) return tabsBlock.dataset.tabsAnimate > 0 ? Number(tabsBlock.dataset.tabsAnimate) : 500;
+            }
+            const tabsBlockAnimate = isTabsAnamate(tabsBlock);
+            if (tabsContent.length > 0) {
+                const isHash = tabsBlock.hasAttribute("data-tabs-hash");
+                tabsContent = Array.from(tabsContent).filter((item => item.closest("[data-tabs]") === tabsBlock));
+                tabsTitles = Array.from(tabsTitles).filter((item => item.closest("[data-tabs]") === tabsBlock));
+                tabsContent.forEach(((tabsContentItem, index) => {
+                    if (tabsTitles[index].classList.contains("_tab-active")) {
+                        if (tabsBlockAnimate) _slideDown(tabsContentItem, tabsBlockAnimate); else tabsContentItem.hidden = false;
+                        if (isHash && !tabsContentItem.closest(".popup")) setHash(`tab-${tabsBlockIndex}-${index}`);
+                    } else if (tabsBlockAnimate) _slideUp(tabsContentItem, tabsBlockAnimate); else tabsContentItem.hidden = true;
+                }));
+            }
+        }
+        function setTabsAction(e) {
+            const el = e.target;
+            if (el.closest("[data-tabs-title]")) {
+                const tabTitle = el.closest("[data-tabs-title]");
+                const tabsBlock = tabTitle.closest("[data-tabs]");
+                if (!tabTitle.classList.contains("_tab-active") && !tabsBlock.querySelector("._slide")) {
+                    let tabActiveTitle = tabsBlock.querySelectorAll("[data-tabs-title]._tab-active");
+                    tabActiveTitle.length ? tabActiveTitle = Array.from(tabActiveTitle).filter((item => item.closest("[data-tabs]") === tabsBlock)) : null;
+                    tabActiveTitle.length ? tabActiveTitle[0].classList.remove("_tab-active") : null;
+                    tabTitle.classList.add("_tab-active");
+                    setTabsStatus(tabsBlock);
+                }
+                e.preventDefault();
+            }
+        }
     }
     function uniqArray(array) {
         return array.filter((function(item, index, self) {
@@ -255,405 +391,6 @@
             }
         }
     }
-    let formValidate = {
-        getErrors(form) {
-            let error = 0;
-            let formRequiredItems = form.querySelectorAll("*[data-required]");
-            if (formRequiredItems.length) formRequiredItems.forEach((formRequiredItem => {
-                if (!formRequiredItem.disabled) error += this.validateInput(formRequiredItem);
-            }));
-            return error;
-        },
-        validateInput(formRequiredItem) {
-            let error = 0;
-            if ("email" == formRequiredItem.dataset.required) {
-                formRequiredItem.value = formRequiredItem.value.replace(" ", "");
-                if (this.emailTest(formRequiredItem)) {
-                    this.addError(formRequiredItem);
-                    error++;
-                } else this.removeError(formRequiredItem);
-            }
-            if ("radio" == formRequiredItem.dataset.required) {
-                function isCheck() {
-                    for (let i = 0; i < formRequiredItem.children.length; i += 2) if (formRequiredItem.children[i].checked) return true;
-                    return false;
-                }
-                if (!isCheck()) {
-                    this.addError(formRequiredItem);
-                    error++;
-                }
-            }
-            if ("repeat" == formRequiredItem.dataset.required) {
-                let main_el = document.querySelector(formRequiredItem.dataset.repeat).value;
-                let repeat_el = formRequiredItem.value;
-                if (main_el == repeat_el) this.removeError(formRequiredItem); else {
-                    this.addError(formRequiredItem);
-                    error++;
-                }
-            }
-            if ("" == formRequiredItem.dataset.required) if (!formRequiredItem.value.trim()) {
-                this.addError(formRequiredItem);
-                error++;
-            } else this.removeError(formRequiredItem);
-            return error;
-        },
-        addError(formRequiredItem) {
-            formRequiredItem.classList.add("_form-error");
-            formRequiredItem.parentElement.classList.add("_form-error");
-            let inputError = formRequiredItem.parentElement.querySelector(".form__error");
-            if (inputError) formRequiredItem.parentElement.removeChild(inputError);
-            if (formRequiredItem.dataset.error) formRequiredItem.parentElement.insertAdjacentHTML("beforeend", `<div class="form__error">${formRequiredItem.dataset.error}</div>`);
-        },
-        removeError(formRequiredItem) {
-            formRequiredItem.classList.remove("_form-error");
-            formRequiredItem.parentElement.classList.remove("_form-error");
-            if (formRequiredItem.parentElement.querySelector(".form__error")) formRequiredItem.parentElement.removeChild(formRequiredItem.parentElement.querySelector(".form__error"));
-        },
-        formClean(form) {
-            form.reset();
-            setTimeout((() => {
-                let inputs = form.querySelectorAll("input,textarea");
-                for (let index = 0; index < inputs.length; index++) {
-                    const el = inputs[index];
-                    el.parentElement.classList.remove("_form-focus");
-                    el.classList.remove("_form-focus");
-                    formValidate.removeError(el);
-                }
-                let checkboxes = form.querySelectorAll(".checkbox__input");
-                if (checkboxes.length > 0) for (let index = 0; index < checkboxes.length; index++) {
-                    const checkbox = checkboxes[index];
-                    checkbox.checked = false;
-                }
-                if (modules_flsModules.select) {
-                    let selects = form.querySelectorAll(".select");
-                    if (selects.length) for (let index = 0; index < selects.length; index++) {
-                        const select = selects[index].querySelector("select");
-                        modules_flsModules.select.selectBuild(select);
-                    }
-                }
-            }), 0);
-        },
-        emailTest(formRequiredItem) {
-            var re = /^[\w-\.]+@[\w-]+\.[a-z]{2,4}$/i;
-            var myMail = formRequiredItem.value;
-            var valid = re.test(myMail);
-            if (valid) return false; else return true;
-        }
-    };
-    class SelectConstructor {
-        constructor(props, data = null) {
-            let defaultConfig = {
-                init: true,
-                logging: true
-            };
-            this.config = Object.assign(defaultConfig, props);
-            this.selectClasses = {
-                classSelect: "select",
-                classSelectBody: "select__body",
-                classSelectTitle: "select__title",
-                classSelectValue: "select__value",
-                classSelectLabel: "select__label",
-                classSelectInput: "select__input",
-                classSelectText: "select__text",
-                classSelectLink: "select__link",
-                classSelectOptions: "select__options",
-                classSelectOptionsScroll: "select__scroll",
-                classSelectOption: "select__option",
-                classSelectContent: "select__content",
-                classSelectRow: "select__row",
-                classSelectData: "select__asset",
-                classSelectDisabled: "_select-disabled",
-                classSelectTag: "_select-tag",
-                classSelectOpen: "_select-open",
-                classSelectActive: "_select-active",
-                classSelectFocus: "_select-focus",
-                classSelectMultiple: "_select-multiple",
-                classSelectCheckBox: "_select-checkbox",
-                classSelectOptionSelected: "_select-selected",
-                classSelectPseudoLabel: "_select-pseudo-label"
-            };
-            this._this = this;
-            if (this.config.init) {
-                const selectItems = data ? document.querySelectorAll(data) : document.querySelectorAll("select");
-                if (selectItems.length) {
-                    this.selectsInit(selectItems);
-                    this.setLogging(`Проснулся, построил селектов: (${selectItems.length})`);
-                } else this.setLogging("Сплю, нет ни одного select zzZZZzZZz");
-            }
-        }
-        getSelectClass(className) {
-            return `.${className}`;
-        }
-        getSelectElement(selectItem, className) {
-            return {
-                originalSelect: selectItem.querySelector("select"),
-                selectElement: selectItem.querySelector(this.getSelectClass(className))
-            };
-        }
-        selectsInit(selectItems) {
-            selectItems.forEach(((originalSelect, index) => {
-                this.selectInit(originalSelect, index + 1);
-            }));
-            document.addEventListener("click", function(e) {
-                this.selectsActions(e);
-            }.bind(this));
-            document.addEventListener("keydown", function(e) {
-                this.selectsActions(e);
-            }.bind(this));
-            document.addEventListener("focusin", function(e) {
-                this.selectsActions(e);
-            }.bind(this));
-            document.addEventListener("focusout", function(e) {
-                this.selectsActions(e);
-            }.bind(this));
-        }
-        selectInit(originalSelect, index) {
-            const _this = this;
-            let selectItem = document.createElement("div");
-            selectItem.classList.add(this.selectClasses.classSelect);
-            originalSelect.parentNode.insertBefore(selectItem, originalSelect);
-            selectItem.appendChild(originalSelect);
-            originalSelect.hidden = true;
-            index ? originalSelect.dataset.id = index : null;
-            if (this.getSelectPlaceholder(originalSelect)) {
-                originalSelect.dataset.placeholder = this.getSelectPlaceholder(originalSelect).value;
-                if (this.getSelectPlaceholder(originalSelect).label.show) {
-                    const selectItemTitle = this.getSelectElement(selectItem, this.selectClasses.classSelectTitle).selectElement;
-                    selectItemTitle.insertAdjacentHTML("afterbegin", `<span class="${this.selectClasses.classSelectLabel}">${this.getSelectPlaceholder(originalSelect).label.text ? this.getSelectPlaceholder(originalSelect).label.text : this.getSelectPlaceholder(originalSelect).value}</span>`);
-                }
-            }
-            selectItem.insertAdjacentHTML("beforeend", `<div class="${this.selectClasses.classSelectBody}"><div hidden class="${this.selectClasses.classSelectOptions}"></div></div>`);
-            this.selectBuild(originalSelect);
-            originalSelect.dataset.speed = originalSelect.dataset.speed ? originalSelect.dataset.speed : "150";
-            originalSelect.addEventListener("change", (function(e) {
-                _this.selectChange(e);
-            }));
-        }
-        selectBuild(originalSelect) {
-            const selectItem = originalSelect.parentElement;
-            selectItem.dataset.id = originalSelect.dataset.id;
-            originalSelect.dataset.classModif ? selectItem.classList.add(`select_${originalSelect.dataset.classModif}`) : null;
-            originalSelect.multiple ? selectItem.classList.add(this.selectClasses.classSelectMultiple) : selectItem.classList.remove(this.selectClasses.classSelectMultiple);
-            originalSelect.hasAttribute("data-checkbox") && originalSelect.multiple ? selectItem.classList.add(this.selectClasses.classSelectCheckBox) : selectItem.classList.remove(this.selectClasses.classSelectCheckBox);
-            this.setSelectTitleValue(selectItem, originalSelect);
-            this.setOptions(selectItem, originalSelect);
-            originalSelect.hasAttribute("data-search") ? this.searchActions(selectItem) : null;
-            originalSelect.hasAttribute("data-open") ? this.selectAction(selectItem) : null;
-            this.selectDisabled(selectItem, originalSelect);
-        }
-        selectsActions(e) {
-            const targetElement = e.target;
-            const targetType = e.type;
-            if (targetElement.closest(this.getSelectClass(this.selectClasses.classSelect)) || targetElement.closest(this.getSelectClass(this.selectClasses.classSelectTag))) {
-                const selectItem = targetElement.closest(".select") ? targetElement.closest(".select") : document.querySelector(`.${this.selectClasses.classSelect}[data-id="${targetElement.closest(this.getSelectClass(this.selectClasses.classSelectTag)).dataset.selectId}"]`);
-                const originalSelect = this.getSelectElement(selectItem).originalSelect;
-                if ("click" === targetType) {
-                    if (!originalSelect.disabled) if (targetElement.closest(this.getSelectClass(this.selectClasses.classSelectTag))) {
-                        const targetTag = targetElement.closest(this.getSelectClass(this.selectClasses.classSelectTag));
-                        const optionItem = document.querySelector(`.${this.selectClasses.classSelect}[data-id="${targetTag.dataset.selectId}"] .select__option[data-value="${targetTag.dataset.value}"]`);
-                        this.optionAction(selectItem, originalSelect, optionItem);
-                    } else if (targetElement.closest(this.getSelectClass(this.selectClasses.classSelectTitle))) this.selectAction(selectItem); else if (targetElement.closest(this.getSelectClass(this.selectClasses.classSelectOption))) {
-                        const optionItem = targetElement.closest(this.getSelectClass(this.selectClasses.classSelectOption));
-                        this.optionAction(selectItem, originalSelect, optionItem);
-                    }
-                } else if ("focusin" === targetType || "focusout" === targetType) {
-                    if (targetElement.closest(this.getSelectClass(this.selectClasses.classSelect))) "focusin" === targetType ? selectItem.classList.add(this.selectClasses.classSelectFocus) : selectItem.classList.remove(this.selectClasses.classSelectFocus);
-                } else if ("keydown" === targetType && "Escape" === e.code) this.selectsСlose();
-            } else this.selectsСlose();
-        }
-        selectsСlose(selectOneGroup) {
-            const selectsGroup = selectOneGroup ? selectOneGroup : document;
-            const selectActiveItems = selectsGroup.querySelectorAll(`${this.getSelectClass(this.selectClasses.classSelect)}${this.getSelectClass(this.selectClasses.classSelectOpen)}`);
-            if (selectActiveItems.length) selectActiveItems.forEach((selectActiveItem => {
-                this.selectСlose(selectActiveItem);
-            }));
-        }
-        selectСlose(selectItem) {
-            const originalSelect = this.getSelectElement(selectItem).originalSelect;
-            const selectOptions = this.getSelectElement(selectItem, this.selectClasses.classSelectOptions).selectElement;
-            if (!selectOptions.classList.contains("_slide")) {
-                selectItem.classList.remove(this.selectClasses.classSelectOpen);
-                _slideUp(selectOptions, originalSelect.dataset.speed);
-            }
-        }
-        selectAction(selectItem) {
-            const originalSelect = this.getSelectElement(selectItem).originalSelect;
-            const selectOptions = this.getSelectElement(selectItem, this.selectClasses.classSelectOptions).selectElement;
-            if (originalSelect.closest("[data-one-select]")) {
-                const selectOneGroup = originalSelect.closest("[data-one-select]");
-                this.selectsСlose(selectOneGroup);
-            }
-            if (!selectOptions.classList.contains("_slide")) {
-                selectItem.classList.toggle(this.selectClasses.classSelectOpen);
-                _slideToggle(selectOptions, originalSelect.dataset.speed);
-            }
-        }
-        setSelectTitleValue(selectItem, originalSelect) {
-            const selectItemBody = this.getSelectElement(selectItem, this.selectClasses.classSelectBody).selectElement;
-            const selectItemTitle = this.getSelectElement(selectItem, this.selectClasses.classSelectTitle).selectElement;
-            if (selectItemTitle) selectItemTitle.remove();
-            selectItemBody.insertAdjacentHTML("afterbegin", this.getSelectTitleValue(selectItem, originalSelect));
-        }
-        getSelectTitleValue(selectItem, originalSelect) {
-            let selectTitleValue = this.getSelectedOptionsData(originalSelect, 2).html;
-            if (originalSelect.multiple && originalSelect.hasAttribute("data-tags")) {
-                selectTitleValue = this.getSelectedOptionsData(originalSelect).elements.map((option => `<span role="button" data-select-id="${selectItem.dataset.id}" data-value="${option.value}" class="_select-tag">${this.getSelectElementContent(option)}</span>`)).join("");
-                if (originalSelect.dataset.tags && document.querySelector(originalSelect.dataset.tags)) {
-                    document.querySelector(originalSelect.dataset.tags).innerHTML = selectTitleValue;
-                    if (originalSelect.hasAttribute("data-search")) selectTitleValue = false;
-                }
-            }
-            selectTitleValue = selectTitleValue.length ? selectTitleValue : originalSelect.dataset.placeholder ? originalSelect.dataset.placeholder : "";
-            let pseudoAttribute = "";
-            let pseudoAttributeClass = "";
-            if (originalSelect.hasAttribute("data-pseudo-label")) {
-                pseudoAttribute = originalSelect.dataset.pseudoLabel ? ` data-pseudo-label="${originalSelect.dataset.pseudoLabel}"` : ` data-pseudo-label="Заполните атрибут"`;
-                pseudoAttributeClass = ` ${this.selectClasses.classSelectPseudoLabel}`;
-            }
-            this.getSelectedOptionsData(originalSelect).values.length ? selectItem.classList.add(this.selectClasses.classSelectActive) : selectItem.classList.remove(this.selectClasses.classSelectActive);
-            if (originalSelect.hasAttribute("data-search")) return `<div class="${this.selectClasses.classSelectTitle}"><span${pseudoAttribute} class="${this.selectClasses.classSelectValue}"><input autocomplete="off" type="text" placeholder="${selectTitleValue}" data-placeholder="${selectTitleValue}" class="${this.selectClasses.classSelectInput}"></span></div>`; else {
-                const customClass = this.getSelectedOptionsData(originalSelect).elements.length && this.getSelectedOptionsData(originalSelect).elements[0].dataset.class ? ` ${this.getSelectedOptionsData(originalSelect).elements[0].dataset.class}` : "";
-                return `<button type="button" class="${this.selectClasses.classSelectTitle}"><span${pseudoAttribute} class="${this.selectClasses.classSelectValue}${pseudoAttributeClass}"><span class="${this.selectClasses.classSelectContent}${customClass}">${selectTitleValue}</span></span></button>`;
-            }
-        }
-        getSelectElementContent(selectOption) {
-            const selectOptionData = selectOption.dataset.asset ? `${selectOption.dataset.asset}` : "";
-            const selectOptionDataHTML = selectOptionData.indexOf("img") >= 0 ? `<img src="${selectOptionData}" alt="">` : selectOptionData;
-            let selectOptionContentHTML = ``;
-            selectOptionContentHTML += selectOptionData ? `<span class="${this.selectClasses.classSelectRow}">` : "";
-            selectOptionContentHTML += selectOptionData ? `<span class="${this.selectClasses.classSelectData}">` : "";
-            selectOptionContentHTML += selectOptionData ? selectOptionDataHTML : "";
-            selectOptionContentHTML += selectOptionData ? `</span>` : "";
-            selectOptionContentHTML += selectOptionData ? `<span class="${this.selectClasses.classSelectText}">` : "";
-            selectOptionContentHTML += selectOption.textContent;
-            selectOptionContentHTML += selectOptionData ? `</span>` : "";
-            selectOptionContentHTML += selectOptionData ? `</span>` : "";
-            return selectOptionContentHTML;
-        }
-        getSelectPlaceholder(originalSelect) {
-            const selectPlaceholder = Array.from(originalSelect.options).find((option => !option.value));
-            if (selectPlaceholder) return {
-                value: selectPlaceholder.textContent,
-                show: selectPlaceholder.hasAttribute("data-show"),
-                label: {
-                    show: selectPlaceholder.hasAttribute("data-label"),
-                    text: selectPlaceholder.dataset.label
-                }
-            };
-        }
-        getSelectedOptionsData(originalSelect, type) {
-            let selectedOptions = [];
-            if (originalSelect.multiple) selectedOptions = Array.from(originalSelect.options).filter((option => option.value)).filter((option => option.selected)); else selectedOptions.push(originalSelect.options[originalSelect.selectedIndex]);
-            return {
-                elements: selectedOptions.map((option => option)),
-                values: selectedOptions.filter((option => option.value)).map((option => option.value)),
-                html: selectedOptions.map((option => this.getSelectElementContent(option)))
-            };
-        }
-        getOptions(originalSelect) {
-            let selectOptionsScroll = originalSelect.hasAttribute("data-scroll") ? `data-simplebar` : "";
-            let selectOptionsScrollHeight = originalSelect.dataset.scroll ? `style="max-height:${originalSelect.dataset.scroll}px"` : "";
-            let selectOptions = Array.from(originalSelect.options);
-            if (selectOptions.length > 0) {
-                let selectOptionsHTML = ``;
-                if (this.getSelectPlaceholder(originalSelect) && !this.getSelectPlaceholder(originalSelect).show || originalSelect.multiple) selectOptions = selectOptions.filter((option => option.value));
-                selectOptionsHTML += selectOptionsScroll ? `<div ${selectOptionsScroll} ${selectOptionsScrollHeight} class="${this.selectClasses.classSelectOptionsScroll}">` : "";
-                selectOptions.forEach((selectOption => {
-                    selectOptionsHTML += this.getOption(selectOption, originalSelect);
-                }));
-                selectOptionsHTML += selectOptionsScroll ? `</div>` : "";
-                return selectOptionsHTML;
-            }
-        }
-        getOption(selectOption, originalSelect) {
-            const selectOptionSelected = selectOption.selected && originalSelect.multiple ? ` ${this.selectClasses.classSelectOptionSelected}` : "";
-            const selectOptionHide = selectOption.selected && !originalSelect.hasAttribute("data-show-selected") && !originalSelect.multiple ? `hidden` : ``;
-            const selectOptionClass = selectOption.dataset.class ? ` ${selectOption.dataset.class}` : "";
-            const selectOptionLink = selectOption.dataset.href ? selectOption.dataset.href : false;
-            const selectOptionLinkTarget = selectOption.hasAttribute("data-href-blank") ? `target="_blank"` : "";
-            let selectOptionHTML = ``;
-            selectOptionHTML += selectOptionLink ? `<a ${selectOptionLinkTarget} ${selectOptionHide} href="${selectOptionLink}" data-value="${selectOption.value}" class="${this.selectClasses.classSelectOption}${selectOptionClass}${selectOptionSelected}">` : `<button ${selectOptionHide} class="${this.selectClasses.classSelectOption}${selectOptionClass}${selectOptionSelected}" data-value="${selectOption.value}" type="button">`;
-            selectOptionHTML += this.getSelectElementContent(selectOption);
-            selectOptionHTML += selectOptionLink ? `</a>` : `</button>`;
-            return selectOptionHTML;
-        }
-        setOptions(selectItem, originalSelect) {
-            const selectItemOptions = this.getSelectElement(selectItem, this.selectClasses.classSelectOptions).selectElement;
-            selectItemOptions.innerHTML = this.getOptions(originalSelect);
-        }
-        optionAction(selectItem, originalSelect, optionItem) {
-            if (originalSelect.multiple) {
-                optionItem.classList.toggle(this.selectClasses.classSelectOptionSelected);
-                const originalSelectSelectedItems = this.getSelectedOptionsData(originalSelect).elements;
-                originalSelectSelectedItems.forEach((originalSelectSelectedItem => {
-                    originalSelectSelectedItem.removeAttribute("selected");
-                }));
-                const selectSelectedItems = selectItem.querySelectorAll(this.getSelectClass(this.selectClasses.classSelectOptionSelected));
-                selectSelectedItems.forEach((selectSelectedItems => {
-                    originalSelect.querySelector(`option[value="${selectSelectedItems.dataset.value}"]`).setAttribute("selected", "selected");
-                }));
-            } else {
-                if (!originalSelect.hasAttribute("data-show-selected")) {
-                    if (selectItem.querySelector(`${this.getSelectClass(this.selectClasses.classSelectOption)}[hidden]`)) selectItem.querySelector(`${this.getSelectClass(this.selectClasses.classSelectOption)}[hidden]`).hidden = false;
-                    optionItem.hidden = true;
-                }
-                originalSelect.value = optionItem.hasAttribute("data-value") ? optionItem.dataset.value : optionItem.textContent;
-                this.selectAction(selectItem);
-            }
-            this.setSelectTitleValue(selectItem, originalSelect);
-            this.setSelectChange(originalSelect);
-        }
-        selectChange(e) {
-            const originalSelect = e.target;
-            this.selectBuild(originalSelect);
-            this.setSelectChange(originalSelect);
-        }
-        setSelectChange(originalSelect) {
-            if (originalSelect.hasAttribute("data-validate")) formValidate.validateInput(originalSelect);
-            if (originalSelect.hasAttribute("data-submit") && originalSelect.value) {
-                let tempButton = document.createElement("button");
-                tempButton.type = "submit";
-                originalSelect.closest("form").append(tempButton);
-                tempButton.click();
-                tempButton.remove();
-            }
-            const selectItem = originalSelect.parentElement;
-            this.selectCallback(selectItem, originalSelect);
-        }
-        selectDisabled(selectItem, originalSelect) {
-            if (originalSelect.disabled) {
-                selectItem.classList.add(this.selectClasses.classSelectDisabled);
-                this.getSelectElement(selectItem, this.selectClasses.classSelectTitle).selectElement.disabled = true;
-            } else {
-                selectItem.classList.remove(this.selectClasses.classSelectDisabled);
-                this.getSelectElement(selectItem, this.selectClasses.classSelectTitle).selectElement.disabled = false;
-            }
-        }
-        searchActions(selectItem) {
-            this.getSelectElement(selectItem).originalSelect;
-            const selectInput = this.getSelectElement(selectItem, this.selectClasses.classSelectInput).selectElement;
-            const selectOptions = this.getSelectElement(selectItem, this.selectClasses.classSelectOptions).selectElement;
-            const selectOptionsItems = selectOptions.querySelectorAll(`.${this.selectClasses.classSelectOption}`);
-            const _this = this;
-            selectInput.addEventListener("input", (function() {
-                selectOptionsItems.forEach((selectOptionsItem => {
-                    if (selectOptionsItem.textContent.toUpperCase().indexOf(selectInput.value.toUpperCase()) >= 0) selectOptionsItem.hidden = false; else selectOptionsItem.hidden = true;
-                }));
-                true === selectOptions.hidden ? _this.selectAction(selectItem) : null;
-            }));
-        }
-        selectCallback(selectItem, originalSelect) {
-            document.dispatchEvent(new CustomEvent("selectCallback", {
-                detail: {
-                    select: originalSelect
-                }
-            }));
-        }
-        setLogging(message) {
-            this.config.logging ? functions_FLS(`[select]: ${message}`) : null;
-        }
-    }
-    modules_flsModules.select = new SelectConstructor({});
     function ssr_window_esm_isObject(obj) {
         return null !== obj && "object" === typeof obj && "constructor" in obj && obj.constructor === Object;
     }
@@ -777,7 +514,7 @@
         extend(win, ssrWindow);
         return win;
     }
-    function utils_classesToTokens(classes) {
+    function classesToTokens(classes) {
         if (void 0 === classes) classes = "";
         return classes.trim().split(" ").filter((c => !!c.trim()));
     }
@@ -905,8 +642,22 @@
     function utils_createElement(tag, classes) {
         if (void 0 === classes) classes = [];
         const el = document.createElement(tag);
-        el.classList.add(...Array.isArray(classes) ? classes : utils_classesToTokens(classes));
+        el.classList.add(...Array.isArray(classes) ? classes : classesToTokens(classes));
         return el;
+    }
+    function utils_elementOffset(el) {
+        const window = ssr_window_esm_getWindow();
+        const document = ssr_window_esm_getDocument();
+        const box = el.getBoundingClientRect();
+        const body = document.body;
+        const clientTop = el.clientTop || body.clientTop || 0;
+        const clientLeft = el.clientLeft || body.clientLeft || 0;
+        const scrollTop = el === window ? window.scrollY : el.scrollTop;
+        const scrollLeft = el === window ? window.scrollX : el.scrollLeft;
+        return {
+            top: box.top + scrollTop - clientTop,
+            left: box.left + scrollLeft - clientLeft
+        };
     }
     function elementPrevAll(el, selector) {
         const prevEls = [];
@@ -954,6 +705,14 @@
             parent = parent.parentElement;
         }
         return parents;
+    }
+    function utils_elementTransitionEnd(el, callback) {
+        function fireCallBack(e) {
+            if (e.target !== el) return;
+            callback.call(el, e);
+            el.removeEventListener("transitionend", fireCallBack);
+        }
+        if (callback) el.addEventListener("transitionend", fireCallBack);
     }
     function elementOuterSize(el, size, includeMargins) {
         const window = ssr_window_esm_getWindow();
@@ -3581,7 +3340,7 @@
         }));
     }));
     Swiper.use([ Resize, Observer ]);
-    function create_element_if_not_defined_createElementIfNotDefined(swiper, originalParams, params, checkProps) {
+    function createElementIfNotDefined(swiper, originalParams, params, checkProps) {
         if (swiper.params.createElements) Object.keys(checkProps).forEach((key => {
             if (!params[key] && true === params.auto) {
                 let element = utils_elementChildren(swiper.el, `.${checkProps[key]}`)[0];
@@ -3662,7 +3421,7 @@
         }
         function init() {
             const params = swiper.params.navigation;
-            swiper.params.navigation = create_element_if_not_defined_createElementIfNotDefined(swiper, swiper.originalParams.navigation, swiper.params.navigation, {
+            swiper.params.navigation = createElementIfNotDefined(swiper, swiper.originalParams.navigation, swiper.params.navigation, {
                 nextEl: "swiper-button-next",
                 prevEl: "swiper-button-prev"
             });
@@ -3939,7 +3698,7 @@
             if ("custom" !== params.type) emit("paginationRender", el[0]);
         }
         function init() {
-            swiper.params.pagination = create_element_if_not_defined_createElementIfNotDefined(swiper, swiper.originalParams.pagination, swiper.params.pagination, {
+            swiper.params.pagination = createElementIfNotDefined(swiper, swiper.originalParams.pagination, swiper.params.pagination, {
                 el: "swiper-pagination"
             });
             const params = swiper.params.pagination;
@@ -4072,35 +3831,849 @@
             destroy
         });
     }
-    new Swiper(".section-client__slider", {
+    function Scrollbar(_ref) {
+        let {swiper, extendParams, on, emit} = _ref;
+        const document = ssr_window_esm_getDocument();
+        let isTouched = false;
+        let timeout = null;
+        let dragTimeout = null;
+        let dragStartPos;
+        let dragSize;
+        let trackSize;
+        let divider;
+        extendParams({
+            scrollbar: {
+                el: null,
+                dragSize: "auto",
+                hide: false,
+                draggable: false,
+                snapOnRelease: true,
+                lockClass: "swiper-scrollbar-lock",
+                dragClass: "swiper-scrollbar-drag",
+                scrollbarDisabledClass: "swiper-scrollbar-disabled",
+                horizontalClass: `swiper-scrollbar-horizontal`,
+                verticalClass: `swiper-scrollbar-vertical`
+            }
+        });
+        swiper.scrollbar = {
+            el: null,
+            dragEl: null
+        };
+        function setTranslate() {
+            if (!swiper.params.scrollbar.el || !swiper.scrollbar.el) return;
+            const {scrollbar, rtlTranslate: rtl} = swiper;
+            const {dragEl, el} = scrollbar;
+            const params = swiper.params.scrollbar;
+            const progress = swiper.params.loop ? swiper.progressLoop : swiper.progress;
+            let newSize = dragSize;
+            let newPos = (trackSize - dragSize) * progress;
+            if (rtl) {
+                newPos = -newPos;
+                if (newPos > 0) {
+                    newSize = dragSize - newPos;
+                    newPos = 0;
+                } else if (-newPos + dragSize > trackSize) newSize = trackSize + newPos;
+            } else if (newPos < 0) {
+                newSize = dragSize + newPos;
+                newPos = 0;
+            } else if (newPos + dragSize > trackSize) newSize = trackSize - newPos;
+            if (swiper.isHorizontal()) {
+                dragEl.style.transform = `translate3d(${newPos}px, 0, 0)`;
+                dragEl.style.width = `${newSize}px`;
+            } else {
+                dragEl.style.transform = `translate3d(0px, ${newPos}px, 0)`;
+                dragEl.style.height = `${newSize}px`;
+            }
+            if (params.hide) {
+                clearTimeout(timeout);
+                el.style.opacity = 1;
+                timeout = setTimeout((() => {
+                    el.style.opacity = 0;
+                    el.style.transitionDuration = "400ms";
+                }), 1e3);
+            }
+        }
+        function setTransition(duration) {
+            if (!swiper.params.scrollbar.el || !swiper.scrollbar.el) return;
+            swiper.scrollbar.dragEl.style.transitionDuration = `${duration}ms`;
+        }
+        function updateSize() {
+            if (!swiper.params.scrollbar.el || !swiper.scrollbar.el) return;
+            const {scrollbar} = swiper;
+            const {dragEl, el} = scrollbar;
+            dragEl.style.width = "";
+            dragEl.style.height = "";
+            trackSize = swiper.isHorizontal() ? el.offsetWidth : el.offsetHeight;
+            divider = swiper.size / (swiper.virtualSize + swiper.params.slidesOffsetBefore - (swiper.params.centeredSlides ? swiper.snapGrid[0] : 0));
+            if ("auto" === swiper.params.scrollbar.dragSize) dragSize = trackSize * divider; else dragSize = parseInt(swiper.params.scrollbar.dragSize, 10);
+            if (swiper.isHorizontal()) dragEl.style.width = `${dragSize}px`; else dragEl.style.height = `${dragSize}px`;
+            if (divider >= 1) el.style.display = "none"; else el.style.display = "";
+            if (swiper.params.scrollbar.hide) el.style.opacity = 0;
+            if (swiper.params.watchOverflow && swiper.enabled) scrollbar.el.classList[swiper.isLocked ? "add" : "remove"](swiper.params.scrollbar.lockClass);
+        }
+        function getPointerPosition(e) {
+            return swiper.isHorizontal() ? e.clientX : e.clientY;
+        }
+        function setDragPosition(e) {
+            const {scrollbar, rtlTranslate: rtl} = swiper;
+            const {el} = scrollbar;
+            let positionRatio;
+            positionRatio = (getPointerPosition(e) - utils_elementOffset(el)[swiper.isHorizontal() ? "left" : "top"] - (null !== dragStartPos ? dragStartPos : dragSize / 2)) / (trackSize - dragSize);
+            positionRatio = Math.max(Math.min(positionRatio, 1), 0);
+            if (rtl) positionRatio = 1 - positionRatio;
+            const position = swiper.minTranslate() + (swiper.maxTranslate() - swiper.minTranslate()) * positionRatio;
+            swiper.updateProgress(position);
+            swiper.setTranslate(position);
+            swiper.updateActiveIndex();
+            swiper.updateSlidesClasses();
+        }
+        function onDragStart(e) {
+            const params = swiper.params.scrollbar;
+            const {scrollbar, wrapperEl} = swiper;
+            const {el, dragEl} = scrollbar;
+            isTouched = true;
+            dragStartPos = e.target === dragEl ? getPointerPosition(e) - e.target.getBoundingClientRect()[swiper.isHorizontal() ? "left" : "top"] : null;
+            e.preventDefault();
+            e.stopPropagation();
+            wrapperEl.style.transitionDuration = "100ms";
+            dragEl.style.transitionDuration = "100ms";
+            setDragPosition(e);
+            clearTimeout(dragTimeout);
+            el.style.transitionDuration = "0ms";
+            if (params.hide) el.style.opacity = 1;
+            if (swiper.params.cssMode) swiper.wrapperEl.style["scroll-snap-type"] = "none";
+            emit("scrollbarDragStart", e);
+        }
+        function onDragMove(e) {
+            const {scrollbar, wrapperEl} = swiper;
+            const {el, dragEl} = scrollbar;
+            if (!isTouched) return;
+            if (e.preventDefault) e.preventDefault(); else e.returnValue = false;
+            setDragPosition(e);
+            wrapperEl.style.transitionDuration = "0ms";
+            el.style.transitionDuration = "0ms";
+            dragEl.style.transitionDuration = "0ms";
+            emit("scrollbarDragMove", e);
+        }
+        function onDragEnd(e) {
+            const params = swiper.params.scrollbar;
+            const {scrollbar, wrapperEl} = swiper;
+            const {el} = scrollbar;
+            if (!isTouched) return;
+            isTouched = false;
+            if (swiper.params.cssMode) {
+                swiper.wrapperEl.style["scroll-snap-type"] = "";
+                wrapperEl.style.transitionDuration = "";
+            }
+            if (params.hide) {
+                clearTimeout(dragTimeout);
+                dragTimeout = utils_nextTick((() => {
+                    el.style.opacity = 0;
+                    el.style.transitionDuration = "400ms";
+                }), 1e3);
+            }
+            emit("scrollbarDragEnd", e);
+            if (params.snapOnRelease) swiper.slideToClosest();
+        }
+        function events(method) {
+            const {scrollbar, params} = swiper;
+            const el = scrollbar.el;
+            if (!el) return;
+            const target = el;
+            const activeListener = params.passiveListeners ? {
+                passive: false,
+                capture: false
+            } : false;
+            const passiveListener = params.passiveListeners ? {
+                passive: true,
+                capture: false
+            } : false;
+            if (!target) return;
+            const eventMethod = "on" === method ? "addEventListener" : "removeEventListener";
+            target[eventMethod]("pointerdown", onDragStart, activeListener);
+            document[eventMethod]("pointermove", onDragMove, activeListener);
+            document[eventMethod]("pointerup", onDragEnd, passiveListener);
+        }
+        function enableDraggable() {
+            if (!swiper.params.scrollbar.el || !swiper.scrollbar.el) return;
+            events("on");
+        }
+        function disableDraggable() {
+            if (!swiper.params.scrollbar.el || !swiper.scrollbar.el) return;
+            events("off");
+        }
+        function init() {
+            const {scrollbar, el: swiperEl} = swiper;
+            swiper.params.scrollbar = createElementIfNotDefined(swiper, swiper.originalParams.scrollbar, swiper.params.scrollbar, {
+                el: "swiper-scrollbar"
+            });
+            const params = swiper.params.scrollbar;
+            if (!params.el) return;
+            let el;
+            if ("string" === typeof params.el && swiper.isElement) el = swiper.el.querySelector(params.el);
+            if (!el && "string" === typeof params.el) {
+                el = document.querySelectorAll(params.el);
+                if (!el.length) return;
+            } else if (!el) el = params.el;
+            if (swiper.params.uniqueNavElements && "string" === typeof params.el && el.length > 1 && 1 === swiperEl.querySelectorAll(params.el).length) el = swiperEl.querySelector(params.el);
+            if (el.length > 0) el = el[0];
+            el.classList.add(swiper.isHorizontal() ? params.horizontalClass : params.verticalClass);
+            let dragEl;
+            if (el) {
+                dragEl = el.querySelector(classes_to_selector_classesToSelector(swiper.params.scrollbar.dragClass));
+                if (!dragEl) {
+                    dragEl = utils_createElement("div", swiper.params.scrollbar.dragClass);
+                    el.append(dragEl);
+                }
+            }
+            Object.assign(scrollbar, {
+                el,
+                dragEl
+            });
+            if (params.draggable) enableDraggable();
+            if (el) el.classList[swiper.enabled ? "remove" : "add"](...classesToTokens(swiper.params.scrollbar.lockClass));
+        }
+        function destroy() {
+            const params = swiper.params.scrollbar;
+            const el = swiper.scrollbar.el;
+            if (el) el.classList.remove(...classesToTokens(swiper.isHorizontal() ? params.horizontalClass : params.verticalClass));
+            disableDraggable();
+        }
+        on("init", (() => {
+            if (false === swiper.params.scrollbar.enabled) disable(); else {
+                init();
+                updateSize();
+                setTranslate();
+            }
+        }));
+        on("update resize observerUpdate lock unlock", (() => {
+            updateSize();
+        }));
+        on("setTranslate", (() => {
+            setTranslate();
+        }));
+        on("setTransition", ((_s, duration) => {
+            setTransition(duration);
+        }));
+        on("enable disable", (() => {
+            const {el} = swiper.scrollbar;
+            if (el) el.classList[swiper.enabled ? "remove" : "add"](...classesToTokens(swiper.params.scrollbar.lockClass));
+        }));
+        on("destroy", (() => {
+            destroy();
+        }));
+        const enable = () => {
+            swiper.el.classList.remove(...classesToTokens(swiper.params.scrollbar.scrollbarDisabledClass));
+            if (swiper.scrollbar.el) swiper.scrollbar.el.classList.remove(...classesToTokens(swiper.params.scrollbar.scrollbarDisabledClass));
+            init();
+            updateSize();
+            setTranslate();
+        };
+        const disable = () => {
+            swiper.el.classList.add(...classesToTokens(swiper.params.scrollbar.scrollbarDisabledClass));
+            if (swiper.scrollbar.el) swiper.scrollbar.el.classList.add(...classesToTokens(swiper.params.scrollbar.scrollbarDisabledClass));
+            destroy();
+        };
+        Object.assign(swiper.scrollbar, {
+            enable,
+            disable,
+            updateSize,
+            setTranslate,
+            init,
+            destroy
+        });
+    }
+    function freeMode(_ref) {
+        let {swiper, extendParams, emit, once} = _ref;
+        extendParams({
+            freeMode: {
+                enabled: false,
+                momentum: true,
+                momentumRatio: 1,
+                momentumBounce: true,
+                momentumBounceRatio: 1,
+                momentumVelocityRatio: 1,
+                sticky: false,
+                minimumVelocity: .02
+            }
+        });
+        function onTouchStart() {
+            if (swiper.params.cssMode) return;
+            const translate = swiper.getTranslate();
+            swiper.setTranslate(translate);
+            swiper.setTransition(0);
+            swiper.touchEventsData.velocities.length = 0;
+            swiper.freeMode.onTouchEnd({
+                currentPos: swiper.rtl ? swiper.translate : -swiper.translate
+            });
+        }
+        function onTouchMove() {
+            if (swiper.params.cssMode) return;
+            const {touchEventsData: data, touches} = swiper;
+            if (0 === data.velocities.length) data.velocities.push({
+                position: touches[swiper.isHorizontal() ? "startX" : "startY"],
+                time: data.touchStartTime
+            });
+            data.velocities.push({
+                position: touches[swiper.isHorizontal() ? "currentX" : "currentY"],
+                time: utils_now()
+            });
+        }
+        function onTouchEnd(_ref2) {
+            let {currentPos} = _ref2;
+            if (swiper.params.cssMode) return;
+            const {params, wrapperEl, rtlTranslate: rtl, snapGrid, touchEventsData: data} = swiper;
+            const touchEndTime = utils_now();
+            const timeDiff = touchEndTime - data.touchStartTime;
+            if (currentPos < -swiper.minTranslate()) {
+                swiper.slideTo(swiper.activeIndex);
+                return;
+            }
+            if (currentPos > -swiper.maxTranslate()) {
+                if (swiper.slides.length < snapGrid.length) swiper.slideTo(snapGrid.length - 1); else swiper.slideTo(swiper.slides.length - 1);
+                return;
+            }
+            if (params.freeMode.momentum) {
+                if (data.velocities.length > 1) {
+                    const lastMoveEvent = data.velocities.pop();
+                    const velocityEvent = data.velocities.pop();
+                    const distance = lastMoveEvent.position - velocityEvent.position;
+                    const time = lastMoveEvent.time - velocityEvent.time;
+                    swiper.velocity = distance / time;
+                    swiper.velocity /= 2;
+                    if (Math.abs(swiper.velocity) < params.freeMode.minimumVelocity) swiper.velocity = 0;
+                    if (time > 150 || utils_now() - lastMoveEvent.time > 300) swiper.velocity = 0;
+                } else swiper.velocity = 0;
+                swiper.velocity *= params.freeMode.momentumVelocityRatio;
+                data.velocities.length = 0;
+                let momentumDuration = 1e3 * params.freeMode.momentumRatio;
+                const momentumDistance = swiper.velocity * momentumDuration;
+                let newPosition = swiper.translate + momentumDistance;
+                if (rtl) newPosition = -newPosition;
+                let doBounce = false;
+                let afterBouncePosition;
+                const bounceAmount = 20 * Math.abs(swiper.velocity) * params.freeMode.momentumBounceRatio;
+                let needsLoopFix;
+                if (newPosition < swiper.maxTranslate()) {
+                    if (params.freeMode.momentumBounce) {
+                        if (newPosition + swiper.maxTranslate() < -bounceAmount) newPosition = swiper.maxTranslate() - bounceAmount;
+                        afterBouncePosition = swiper.maxTranslate();
+                        doBounce = true;
+                        data.allowMomentumBounce = true;
+                    } else newPosition = swiper.maxTranslate();
+                    if (params.loop && params.centeredSlides) needsLoopFix = true;
+                } else if (newPosition > swiper.minTranslate()) {
+                    if (params.freeMode.momentumBounce) {
+                        if (newPosition - swiper.minTranslate() > bounceAmount) newPosition = swiper.minTranslate() + bounceAmount;
+                        afterBouncePosition = swiper.minTranslate();
+                        doBounce = true;
+                        data.allowMomentumBounce = true;
+                    } else newPosition = swiper.minTranslate();
+                    if (params.loop && params.centeredSlides) needsLoopFix = true;
+                } else if (params.freeMode.sticky) {
+                    let nextSlide;
+                    for (let j = 0; j < snapGrid.length; j += 1) if (snapGrid[j] > -newPosition) {
+                        nextSlide = j;
+                        break;
+                    }
+                    if (Math.abs(snapGrid[nextSlide] - newPosition) < Math.abs(snapGrid[nextSlide - 1] - newPosition) || "next" === swiper.swipeDirection) newPosition = snapGrid[nextSlide]; else newPosition = snapGrid[nextSlide - 1];
+                    newPosition = -newPosition;
+                }
+                if (needsLoopFix) once("transitionEnd", (() => {
+                    swiper.loopFix();
+                }));
+                if (0 !== swiper.velocity) {
+                    if (rtl) momentumDuration = Math.abs((-newPosition - swiper.translate) / swiper.velocity); else momentumDuration = Math.abs((newPosition - swiper.translate) / swiper.velocity);
+                    if (params.freeMode.sticky) {
+                        const moveDistance = Math.abs((rtl ? -newPosition : newPosition) - swiper.translate);
+                        const currentSlideSize = swiper.slidesSizesGrid[swiper.activeIndex];
+                        if (moveDistance < currentSlideSize) momentumDuration = params.speed; else if (moveDistance < 2 * currentSlideSize) momentumDuration = 1.5 * params.speed; else momentumDuration = 2.5 * params.speed;
+                    }
+                } else if (params.freeMode.sticky) {
+                    swiper.slideToClosest();
+                    return;
+                }
+                if (params.freeMode.momentumBounce && doBounce) {
+                    swiper.updateProgress(afterBouncePosition);
+                    swiper.setTransition(momentumDuration);
+                    swiper.setTranslate(newPosition);
+                    swiper.transitionStart(true, swiper.swipeDirection);
+                    swiper.animating = true;
+                    utils_elementTransitionEnd(wrapperEl, (() => {
+                        if (!swiper || swiper.destroyed || !data.allowMomentumBounce) return;
+                        emit("momentumBounce");
+                        swiper.setTransition(params.speed);
+                        setTimeout((() => {
+                            swiper.setTranslate(afterBouncePosition);
+                            utils_elementTransitionEnd(wrapperEl, (() => {
+                                if (!swiper || swiper.destroyed) return;
+                                swiper.transitionEnd();
+                            }));
+                        }), 0);
+                    }));
+                } else if (swiper.velocity) {
+                    emit("_freeModeNoMomentumRelease");
+                    swiper.updateProgress(newPosition);
+                    swiper.setTransition(momentumDuration);
+                    swiper.setTranslate(newPosition);
+                    swiper.transitionStart(true, swiper.swipeDirection);
+                    if (!swiper.animating) {
+                        swiper.animating = true;
+                        utils_elementTransitionEnd(wrapperEl, (() => {
+                            if (!swiper || swiper.destroyed) return;
+                            swiper.transitionEnd();
+                        }));
+                    }
+                } else swiper.updateProgress(newPosition);
+                swiper.updateActiveIndex();
+                swiper.updateSlidesClasses();
+            } else if (params.freeMode.sticky) {
+                swiper.slideToClosest();
+                return;
+            } else if (params.freeMode) emit("_freeModeNoMomentumRelease");
+            if (!params.freeMode.momentum || timeDiff >= params.longSwipesMs) {
+                emit("_freeModeStaticRelease");
+                swiper.updateProgress();
+                swiper.updateActiveIndex();
+                swiper.updateSlidesClasses();
+            }
+        }
+        Object.assign(swiper, {
+            freeMode: {
+                onTouchStart,
+                onTouchMove,
+                onTouchEnd
+            }
+        });
+    }
+    function Grid(_ref) {
+        let {swiper, extendParams, on} = _ref;
+        extendParams({
+            grid: {
+                rows: 1,
+                fill: "column"
+            }
+        });
+        let slidesNumberEvenToRows;
+        let slidesPerRow;
+        let numFullColumns;
+        let wasMultiRow;
+        const getSpaceBetween = () => {
+            let spaceBetween = swiper.params.spaceBetween;
+            if ("string" === typeof spaceBetween && spaceBetween.indexOf("%") >= 0) spaceBetween = parseFloat(spaceBetween.replace("%", "")) / 100 * swiper.size; else if ("string" === typeof spaceBetween) spaceBetween = parseFloat(spaceBetween);
+            return spaceBetween;
+        };
+        const initSlides = slides => {
+            const {slidesPerView} = swiper.params;
+            const {rows, fill} = swiper.params.grid;
+            const slidesLength = swiper.virtual && swiper.params.virtual.enabled ? swiper.virtual.slides.length : slides.length;
+            numFullColumns = Math.floor(slidesLength / rows);
+            if (Math.floor(slidesLength / rows) === slidesLength / rows) slidesNumberEvenToRows = slidesLength; else slidesNumberEvenToRows = Math.ceil(slidesLength / rows) * rows;
+            if ("auto" !== slidesPerView && "row" === fill) slidesNumberEvenToRows = Math.max(slidesNumberEvenToRows, slidesPerView * rows);
+            slidesPerRow = slidesNumberEvenToRows / rows;
+        };
+        const unsetSlides = () => {
+            if (swiper.slides) swiper.slides.forEach((slide => {
+                if (slide.swiperSlideGridSet) {
+                    slide.style.height = "";
+                    slide.style[swiper.getDirectionLabel("margin-top")] = "";
+                }
+            }));
+        };
+        const updateSlide = (i, slide, slides) => {
+            const {slidesPerGroup} = swiper.params;
+            const spaceBetween = getSpaceBetween();
+            const {rows, fill} = swiper.params.grid;
+            const slidesLength = swiper.virtual && swiper.params.virtual.enabled ? swiper.virtual.slides.length : slides.length;
+            let newSlideOrderIndex;
+            let column;
+            let row;
+            if ("row" === fill && slidesPerGroup > 1) {
+                const groupIndex = Math.floor(i / (slidesPerGroup * rows));
+                const slideIndexInGroup = i - rows * slidesPerGroup * groupIndex;
+                const columnsInGroup = 0 === groupIndex ? slidesPerGroup : Math.min(Math.ceil((slidesLength - groupIndex * rows * slidesPerGroup) / rows), slidesPerGroup);
+                row = Math.floor(slideIndexInGroup / columnsInGroup);
+                column = slideIndexInGroup - row * columnsInGroup + groupIndex * slidesPerGroup;
+                newSlideOrderIndex = column + row * slidesNumberEvenToRows / rows;
+                slide.style.order = newSlideOrderIndex;
+            } else if ("column" === fill) {
+                column = Math.floor(i / rows);
+                row = i - column * rows;
+                if (column > numFullColumns || column === numFullColumns && row === rows - 1) {
+                    row += 1;
+                    if (row >= rows) {
+                        row = 0;
+                        column += 1;
+                    }
+                }
+            } else {
+                row = Math.floor(i / slidesPerRow);
+                column = i - row * slidesPerRow;
+            }
+            slide.row = row;
+            slide.column = column;
+            slide.style.height = `calc((100% - ${(rows - 1) * spaceBetween}px) / ${rows})`;
+            slide.style[swiper.getDirectionLabel("margin-top")] = 0 !== row ? spaceBetween && `${spaceBetween}px` : "";
+            slide.swiperSlideGridSet = true;
+        };
+        const updateWrapperSize = (slideSize, snapGrid) => {
+            const {centeredSlides, roundLengths} = swiper.params;
+            const spaceBetween = getSpaceBetween();
+            const {rows} = swiper.params.grid;
+            swiper.virtualSize = (slideSize + spaceBetween) * slidesNumberEvenToRows;
+            swiper.virtualSize = Math.ceil(swiper.virtualSize / rows) - spaceBetween;
+            if (!swiper.params.cssMode) swiper.wrapperEl.style[swiper.getDirectionLabel("width")] = `${swiper.virtualSize + spaceBetween}px`;
+            if (centeredSlides) {
+                const newSlidesGrid = [];
+                for (let i = 0; i < snapGrid.length; i += 1) {
+                    let slidesGridItem = snapGrid[i];
+                    if (roundLengths) slidesGridItem = Math.floor(slidesGridItem);
+                    if (snapGrid[i] < swiper.virtualSize + snapGrid[0]) newSlidesGrid.push(slidesGridItem);
+                }
+                snapGrid.splice(0, snapGrid.length);
+                snapGrid.push(...newSlidesGrid);
+            }
+        };
+        const onInit = () => {
+            wasMultiRow = swiper.params.grid && swiper.params.grid.rows > 1;
+        };
+        const onUpdate = () => {
+            const {params, el} = swiper;
+            const isMultiRow = params.grid && params.grid.rows > 1;
+            if (wasMultiRow && !isMultiRow) {
+                el.classList.remove(`${params.containerModifierClass}grid`, `${params.containerModifierClass}grid-column`);
+                numFullColumns = 1;
+                swiper.emitContainerClasses();
+            } else if (!wasMultiRow && isMultiRow) {
+                el.classList.add(`${params.containerModifierClass}grid`);
+                if ("column" === params.grid.fill) el.classList.add(`${params.containerModifierClass}grid-column`);
+                swiper.emitContainerClasses();
+            }
+            wasMultiRow = isMultiRow;
+        };
+        on("init", onInit);
+        on("update", onUpdate);
+        swiper.grid = {
+            initSlides,
+            unsetSlides,
+            updateSlide,
+            updateWrapperSize
+        };
+    }
+    new Swiper(".section-services__swiper", {
         modules: [ Navigation, Pagination ],
         loop: false,
         autoHeight: false,
         spaceBetween: 10,
         breakpoints: {
             992: {
-                slidesPerView: 7,
-                slidesPerGroup: 7
+                slidesPerView: 3
             },
             680: {
-                slidesPerView: 5,
-                slidesPerGroup: 5
-            },
-            480: {
-                slidesPerView: 4,
-                slidesPerGroup: 4
-            },
-            380: {
-                slidesPerView: 3,
-                slidesPerGroup: 3
+                slidesPerView: 2
             },
             320: {
-                slidesPerView: 2,
-                slidesPerGroup: 2
+                slidesPerView: 1
             }
         },
         pagination: {
-            el: ".swiper-pagination-client",
+            el: ".swiper-pagination-services",
+            clickable: true
+        }
+    });
+    new Swiper(".section-certificate__slider", {
+        modules: [ Navigation, Pagination ],
+        loop: false,
+        autoHeight: false,
+        spaceBetween: 40,
+        breakpoints: {
+            1420: {
+                slidesPerView: 4
+            },
+            740: {
+                slidesPerView: 3
+            },
+            530: {
+                slidesPerView: 2
+            },
+            320: {
+                slidesPerView: 1
+            }
+        },
+        pagination: {
+            el: ".swiper-pagination-certificate",
+            clickable: true
+        }
+    });
+    new Swiper(".swiper-benefit", {
+        modules: [ Grid, Navigation, Pagination ],
+        slidesPerView: 3,
+        spaceBetween: 50,
+        grid: {
+            rows: 2,
+            fill: "row"
+        },
+        breakpoints: {
+            992: {
+                slidesPerView: 3,
+                grid: {
+                    rows: 2,
+                    fill: "row"
+                }
+            },
+            680: {
+                slidesPerView: 2
+            },
+            320: {
+                slidesPerView: 1,
+                grid: {
+                    rows: 1,
+                    fill: "column"
+                }
+            }
+        },
+        pagination: {
+            el: ".swiper-benefit-pagination",
+            clickable: true
+        }
+    });
+    new Swiper(".swiper-spheres", {
+        modules: [ Navigation, Pagination ],
+        loop: false,
+        autoHeight: false,
+        spaceBetween: 10,
+        breakpoints: {
+            1440: {
+                slidesPerView: 4
+            },
+            992: {
+                slidesPerView: 3
+            },
+            540: {
+                slidesPerView: 2
+            },
+            320: {
+                slidesPerView: 1
+            }
+        },
+        pagination: {
+            el: ".swiper-spheres-pagination",
+            clickable: true
+        }
+    });
+    new Swiper(".swiper-team", {
+        modules: [ Navigation, Pagination ],
+        loop: false,
+        autoHeight: false,
+        spaceBetween: 30,
+        breakpoints: {
+            1420: {
+                slidesPerView: 4,
+                slidesPerGroup: 4
+            },
+            550: {
+                slidesPerView: 3,
+                slidesPerGroup: 3,
+                spaceBetween: 20
+            },
+            320: {
+                slidesPerView: 2,
+                slidesPerGroup: 2,
+                spaceBetween: 10
+            }
+        },
+        pagination: {
+            el: ".swiper-team-pagination",
+            clickable: true
+        }
+    });
+    new Swiper(".swiper-scheme", {
+        modules: [ Grid, Navigation, Pagination ],
+        slidesPerView: 3,
+        slidesPerGroup: 3,
+        spaceBetween: 50,
+        grid: {
+            rows: 2,
+            fill: "row"
+        },
+        breakpoints: {
+            1440: {
+                slidesPerView: 3,
+                spaceBetween: 20,
+                grid: {
+                    rows: 2,
+                    fill: "row"
+                }
+            },
+            992: {
+                slidesPerView: 2,
+                spaceBetween: 20,
+                grid: {
+                    rows: 3,
+                    fill: "row"
+                }
+            },
+            600: {
+                slidesPerView: 2,
+                slidesPerGroup: 2,
+                spaceBetween: 10,
+                grid: {
+                    rows: 1,
+                    fill: "row"
+                }
+            },
+            320: {
+                slidesPerView: 1,
+                slidesPerGroup: 1,
+                grid: {
+                    rows: 1,
+                    fill: "row"
+                }
+            }
+        },
+        pagination: {
+            el: ".swiper-scheme-pagination",
+            clickable: true
+        }
+    });
+    new Swiper(".swiper-team-grid", {
+        modules: [ Grid, Navigation, Pagination ],
+        breakpoints: {
+            1440: {
+                slidesPerView: 4,
+                spaceBetween: 20,
+                grid: {
+                    rows: 7,
+                    fill: "row"
+                }
+            },
+            550: {
+                slidesPerView: 3,
+                spaceBetween: 20,
+                grid: {
+                    rows: 9,
+                    fill: "row"
+                }
+            },
+            320: {
+                slidesPerView: 2,
+                spaceBetween: 10,
+                grid: {
+                    rows: 13,
+                    fill: "row"
+                }
+            }
+        }
+    });
+    new Swiper(".swiper-gallery", {
+        modules: [ Grid, Navigation, Pagination, Scrollbar, freeMode ],
+        freeMode: true,
+        watchOverflow: true,
+        breakpoints: {
+            1600: {
+                slidesPerView: 9,
+                spaceBetween: 0,
+                grid: {
+                    rows: 2
+                }
+            },
+            992: {
+                slidesPerView: 6,
+                grid: {
+                    rows: 3
+                }
+            },
+            600: {
+                slidesPerView: 4,
+                grid: {
+                    rows: 2
+                }
+            },
+            425: {
+                slidesPerView: 3,
+                grid: {
+                    rows: 2
+                }
+            },
+            320: {
+                slidesPerView: 2,
+                grid: {
+                    rows: 2
+                }
+            }
+        },
+        scrollbar: {
+            el: ".swiper-gallery-scrollbar",
+            draggable: false,
+            hide: false
+        }
+    });
+    new Swiper(".swiper-costs", {
+        modules: [ Navigation, Pagination ],
+        loop: false,
+        autoHeight: false,
+        breakpoints: {
+            1420: {
+                slidesPerView: 3
+            },
+            740: {
+                slidesPerView: 2
+            },
+            530: {
+                slidesPerView: 2
+            },
+            320: {
+                slidesPerView: 1
+            }
+        },
+        pagination: {
+            el: ".swiper-costs-pagination",
+            clickable: true
+        }
+    });
+    new Swiper(".swiper-reviews", {
+        modules: [ Navigation, Pagination ],
+        loop: false,
+        autoHeight: false,
+        spaceBetween: 40,
+        breakpoints: {
+            992: {
+                slidesPerView: 3,
+                spaceBetween: 10
+            },
+            400: {
+                slidesPerView: 2,
+                spaceBetween: 0
+            },
+            320: {
+                slidesPerView: 1
+            }
+        },
+        pagination: {
+            el: ".swiper-reviews-pagination",
+            clickable: true
+        }
+    });
+    new Swiper(".swiper-licensions", {
+        modules: [ Navigation, Pagination ],
+        loop: false,
+        autoHeight: false,
+        spaceBetween: 40,
+        breakpoints: {
+            1420: {
+                slidesPerView: 3,
+                spaceBetween: 10
+            },
+            481: {
+                slidesPerView: 2,
+                spaceBetween: 10
+            },
+            320: {
+                slidesPerView: 1
+            }
+        },
+        pagination: {
+            el: ".swiper-licensions-pagination",
             clickable: true
         }
     });
@@ -4200,8 +4773,62 @@
     };
     const da = new DynamicAdapt("max");
     da.init();
+    const isImg = document.querySelector(".slider-photos__img");
+    if (isImg) {
+        const imgArray = document.querySelectorAll(".slider-photos__img");
+        const mainPhoto = document.querySelector(".photos__img");
+        imgArray.forEach((img => {
+            let srcImg = img.querySelector("img").src.split("/").pop();
+            img.dataset.img = srcImg;
+            img.addEventListener("click", (function() {
+                imgArray.forEach((removeImg => {
+                    if (removeImg.classList.contains("active")) removeImg.classList.remove("active");
+                }));
+                this.classList.add("active");
+                mainPhoto.querySelector("img").src = "img/" + this.dataset.img;
+                mainPhoto.querySelector("source").srcset = "img/" + this.dataset.img;
+            }));
+        }));
+        isImg.click();
+    }
     window["FLS"] = true;
     isWebp();
-    menuInit();
     spollers();
+    tabs();
+    if (isMobile(window.navigator).phone) {
+        document.body.classList.add("_mob");
+        let menuArrows = document.querySelectorAll(".header__menu li");
+        let menuSubArrows = document.querySelectorAll(".menu__sublink svg");
+        if (menuArrows) for (let i = 0; i < menuArrows.length; i++) {
+            const arrow = menuArrows[i];
+            arrow.addEventListener("click", (function(e) {
+                arrow.classList.toggle("active");
+            }));
+        }
+        if (menuSubArrows) for (let i = 0; i < menuSubArrows.length; i++) {
+            const arrow = menuSubArrows[i];
+            arrow.addEventListener("click", (function(e) {
+                arrow.parentElement.parentElement.classList.toggle("active");
+            }));
+        }
+    } else document.body.classList.add("_pc");
+    const burger = document.querySelector(".icon-menu");
+    if (burger) {
+        const menu = document.querySelector(".header__content");
+        burger.onclick = function() {
+            document.body.classList.toggle("lock");
+            menu.classList.toggle("active");
+            burger.classList.toggle("active");
+        };
+    }
+    let headerMenus = document.querySelectorAll(".header-links__link");
+    headerMenus.forEach((menu => {
+        menu.addEventListener("click", (function() {
+            menu.parentElement.classList.toggle("active");
+            let menuClose = menu.parentElement.querySelector(".menu-links__close");
+            menuClose.addEventListener("click", (function() {
+                menu.parentElement.classList.remove("active");
+            }));
+        }));
+    }));
 })();
